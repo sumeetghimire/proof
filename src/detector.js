@@ -74,7 +74,7 @@ async function detectBuildSystem(repoPath, lang) {
     const installCommand = hasRequirements ? 'pip install -r requirements.txt' : 'pip install .';
     return {
       buildCommand: null,
-      testCommand: 'python -m pytest tests/ -v',
+      testCommand: 'python -m pytest -v',
       installCommand,
     };
   }

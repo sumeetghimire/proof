@@ -36508,7 +36508,7 @@ async function detectBuildSystem(repoPath, lang) {
     const installCommand = hasRequirements ? 'pip install -r requirements.txt' : 'pip install .';
     return {
       buildCommand: null,
-      testCommand: 'python -m pytest tests/ -v',
+      testCommand: 'python -m pytest -v',
       installCommand,
     };
   }
@@ -39727,7 +39727,7 @@ async function run() {
     const githubToken = core.getInput('github_token', { required: true });
     const runTestsFlag = getBooleanInput('run_tests', 'true');
     const checkIssue = getBooleanInput('check_issue', 'true');
-    const detectHallucinations = getBooleanInput('detect_hallucinations', 'true');
+    const detectHallucinationsFlag = getBooleanInput('detect_hallucinations', 'true');
     const blockMerge = getBooleanInput('block_merge', 'false');
     const checkDependencies = getBooleanInput('check_dependencies', 'true');
     const checkImports = getBooleanInput('check_imports', 'true');
@@ -39745,7 +39745,7 @@ async function run() {
     core.info('PRoof inputs:');
     core.info(`  run_tests: ${runTestsFlag}`);
     core.info(`  check_issue: ${checkIssue}`);
-    core.info(`  detect_hallucinations: ${detectHallucinations}`);
+    core.info(`  detect_hallucinations: ${detectHallucinationsFlag}`);
     core.info(`  block_merge: ${blockMerge}`);
     core.info(`  check_dependencies: ${checkDependencies}`);
     core.info(`  check_imports: ${checkImports}`);
@@ -39769,7 +39769,7 @@ async function run() {
 
     const results = {};
     let prDiff = '';
-    if ((checkIssue || detectHallucinations || checkDependencies || checkImports || checkScopeFlag || securityScan || checkSensitiveFilesFlag) && pullRequest && repo) {
+    if ((checkIssue || detectHallucinationsFlag || checkDependencies || checkImports || checkScopeFlag || securityScan || checkSensitiveFilesFlag) && pullRequest && repo) {
       try {
         const octokit = github.getOctokit(githubToken);
         const { data } = await octokit.rest.pulls.get({
@@ -39913,7 +39913,7 @@ async function run() {
             }
           }
         }
-        if (!results.timeout && detectHallucinations && prDiff) {
+        if (!results.timeout && detectHallucinationsFlag && prDiff) {
           const { hallucinations, count } = await detectHallucinations(prDiff, lang, workspace);
           results.hallucinations = { count, list: hallucinations };
           if (count > 0) {
