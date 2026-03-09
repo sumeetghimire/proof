@@ -1,5 +1,6 @@
 node_modules/
-dist/
+dist/*
+!dist/index.js
 proof-cli/
 *.log
 .DS_Store
