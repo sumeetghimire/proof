@@ -1,0 +1,22 @@
+{
+  "action": "opened",
+  "pull_request": {
+    "number": 1,
+    "title": "Fix authentication bug",
+    "body": "Fixes #42\n\nThis PR fixes the auth middleware.",
+    "head": {
+      "sha": "abc123",
+      "ref": "fix/auth"
+    },
+    "base": {
+      "sha": "def456",
+      "ref": "main"
+    }
+  },
+  "repository": {
+    "name": "test-repo",
+    "owner": {
+      "login": "test-owner"
+    }
+  }
+}

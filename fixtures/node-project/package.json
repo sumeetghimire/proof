@@ -1,0 +1,11 @@
+{
+  "name": "node-fixture",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test index.test.js",
+    "build": "node -e \"console.log('build')\""
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}

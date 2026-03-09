@@ -1,0 +1,31 @@
+{
+  "name": "proof",
+  "version": "1.0.0",
+  "description": "GitHub Action that verifies pull requests actually fix what they claim to fix",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "ncc build src/index.js -o dist",
+    "run:local": "GITHUB_EVENT_PATH=test/mock-pr.json INPUT_GITHUB_TOKEN=test INPUT_RUN_TESTS=true INPUT_CHECK_ISSUE=true INPUT_DETECT_HALLUCINATIONS=true INPUT_BLOCK_MERGE=false node src/index.js",
+    "run:dist": "GITHUB_EVENT_PATH=test/mock-pr.json INPUT_GITHUB_TOKEN=test INPUT_RUN_TESTS=false INPUT_CHECK_ISSUE=true INPUT_DETECT_HALLUCINATIONS=true INPUT_BLOCK_MERGE=false node dist/index.js"
+  },
+  "keywords": [
+    "github-actions",
+    "pull-request",
+    "verification",
+    "testing"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^6.0.1",
+    "acorn": "^8.11.3"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

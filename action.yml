@@ -1,0 +1,60 @@
+name: PRoof
+description: Verifies pull requests actually fix what they claim to fix. Runs builds and tests on the runner, checks issue linkage, and detects hallucinated APIs.
+author: sumeetghimire
+
+inputs:
+  github_token:
+    description: GitHub token for API calls (use secrets.GITHUB_TOKEN)
+    required: true
+  run_tests:
+    description: Run the test suite on the runner
+    required: false
+    default: 'true'
+  check_issue:
+    description: Check whether the PR fixes the linked GitHub issue
+    required: false
+    default: 'true'
+  detect_hallucinations:
+    description: Check for non-existent API calls in the diff
+    required: false
+    default: 'true'
+  block_merge:
+    description: Fail the check to block merge when verification fails
+    required: false
+    default: 'false'
+  check_dependencies:
+    description: Check new dependencies for typosquatting, age, and download count
+    required: false
+    default: 'true'
+  check_imports:
+    description: Validate import/require and named exports exist in installed packages
+    required: false
+    default: 'true'
+  check_scope:
+    description: Check if changed files are relevant to the linked issue
+    required: false
+    default: 'true'
+  security_scan:
+    description: Scan added diff lines for dangerous code patterns
+    required: false
+    default: 'true'
+  build_timeout:
+    description: Seconds before build/install step is killed
+    required: false
+    default: '120'
+  test_timeout:
+    description: Seconds before test suite is killed
+    required: false
+    default: '300'
+  check_sensitive_files:
+    description: Warn when CI/CD, Docker, secrets, or deployment files are modified
+    required: false
+    default: 'true'
+  languages:
+    description: Comma-separated languages to support; default is auto-detect
+    required: false
+    default: ''
+
+runs:
+  using: node20
+  main: dist/index.js
