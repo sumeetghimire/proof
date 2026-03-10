@@ -36292,13 +36292,17 @@ function parseDiffForDependencyFiles(diff) {
  * @param {Array<{ file: string, lines: string[] }>} blocks
  * @returns {Array<{ name: string, file: string }>}
  */
+const PKG_TOPLEVEL_KEYS = new Set([
+  'name', 'version', 'description', 'scripts', 'private', 'main', 'bin', 'engines',
+  'author', 'license', 'repository', 'homepage', 'bugs', 'files', 'keywords', 'test',
+]);
 function extractNewDeps(blocks) {
   const deps = [];
   for (const { file, lines } of blocks) {
     for (const line of lines) {
       if (file.endsWith('package.json')) {
         const m = line.match(/^\s*"([^"/@][^"]*)"\s*:\s*["\d.]/);
-        if (m && !line.includes('"scripts"')) deps.push({ name: m[1], file });
+        if (m && !line.includes('"scripts"') && !PKG_TOPLEVEL_KEYS.has(m[1])) deps.push({ name: m[1], file });
       } else if (file.endsWith('requirements.txt')) {
         const name = line.split(/[=<>!]/)[0].trim().toLowerCase();
         if (name && !name.startsWith('#')) deps.push({ name, file });
@@ -36730,8 +36734,8 @@ async function validateAPICalls(apiCalls, language, workspace) {
   for (const c of toCheck) {
     const mod = c.object;
     const esc = (s) => s.replace(/'/g, "'\"'\"'");
-    const script = `try { const m = require('${esc(mod)}'); const t = typeof m.${c.method}; console.log(t); } catch (e) { console.log('missing'); }`;
-    const result = await runCommand(workspace, `node -e '${script}'`);
+    const script = `try { const m = require('${esc(mod)}'); const t = typeof m.${c.method}; console.log(t); } catch (e) { console.log("missing"); }`;
+    const result = await runCommand(workspace, `node -e "${script.replace(/"/g, '\\"')}"`);
     const out = (result.stdout + result.stderr).trim();
     if (out !== 'function' && out !== 'object') {
       const key = `${mod}:${c.method}`;
@@ -36874,13 +36878,19 @@ function extractImportsFromDiff(diff) {
   return out;
 }
 
+const NODE_BUILTINS = new Set([
+  'fs', 'path', 'os', 'util', 'http', 'https', 'url', 'stream', 'buffer', 'events',
+  'child_process', 'crypto', 'net', 'dns', 'tls', 'readline', 'zlib', 'cluster',
+  'assert', 'querystring', 'string_decoder', 'timers', 'module', 'process', 'v8',
+]);
 /**
- * Resolves package dir in workspace (node_modules).
+ * Resolves package dir in workspace (node_modules). Returns 'builtin' for Node core modules.
  * @param {string} workspace
  * @param {string} moduleName
  * @returns {Promise<string | null>}
  */
 async function resolvePackageDir(workspace, moduleName) {
+  if (NODE_BUILTINS.has(moduleName)) return 'builtin';
   const nm = path.join(workspace, 'node_modules');
   if (moduleName.startsWith('@')) {
     const [scope, pkg] = moduleName.split('/');
@@ -36946,7 +36956,7 @@ async function validateImports(imports, workspace) {
       hallucinated.push({ ...imp, reason: `module not found in node_modules` });
       continue;
     }
-    if (imp.export == null) continue;
+    if (dir === 'builtin' || imp.export == null) continue;
     const pkgPath = path.join(dir, 'package.json');
     let main = 'index.js';
     try {

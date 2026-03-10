@@ -127,8 +127,8 @@ async function validateAPICalls(apiCalls, language, workspace) {
   for (const c of toCheck) {
     const mod = c.object;
     const esc = (s) => s.replace(/'/g, "'\"'\"'");
-    const script = `try { const m = require('${esc(mod)}'); const t = typeof m.${c.method}; console.log(t); } catch (e) { console.log('missing'); }`;
-    const result = await runCommand(workspace, `node -e '${script}'`);
+    const script = `try { const m = require('${esc(mod)}'); const t = typeof m.${c.method}; console.log(t); } catch (e) { console.log("missing"); }`;
+    const result = await runCommand(workspace, `node -e "${script.replace(/"/g, '\\"')}"`);
     const out = (result.stdout + result.stderr).trim();
     if (out !== 'function' && out !== 'object') {
       const key = `${mod}:${c.method}`;

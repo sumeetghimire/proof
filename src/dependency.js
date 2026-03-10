@@ -64,13 +64,17 @@ function parseDiffForDependencyFiles(diff) {
  * @param {Array<{ file: string, lines: string[] }>} blocks
  * @returns {Array<{ name: string, file: string }>}
  */
+const PKG_TOPLEVEL_KEYS = new Set([
+  'name', 'version', 'description', 'scripts', 'private', 'main', 'bin', 'engines',
+  'author', 'license', 'repository', 'homepage', 'bugs', 'files', 'keywords', 'test',
+]);
 function extractNewDeps(blocks) {
   const deps = [];
   for (const { file, lines } of blocks) {
     for (const line of lines) {
       if (file.endsWith('package.json')) {
         const m = line.match(/^\s*"([^"/@][^"]*)"\s*:\s*["\d.]/);
-        if (m && !line.includes('"scripts"')) deps.push({ name: m[1], file });
+        if (m && !line.includes('"scripts"') && !PKG_TOPLEVEL_KEYS.has(m[1])) deps.push({ name: m[1], file });
       } else if (file.endsWith('requirements.txt')) {
         const name = line.split(/[=<>!]/)[0].trim().toLowerCase();
         if (name && !name.startsWith('#')) deps.push({ name, file });
