@@ -8,7 +8,7 @@ const CRITICAL_PATTERNS = [
   { re: /^\.github\/workflows\/.+\.(yml|yaml)$/i, reason: 'CI/CD pipeline' },
   { re: /^Dockerfile$/i, reason: 'Container environment' },
   { re: /^docker-compose\.(yml|yaml)$/i, reason: 'Container environment' },
-  { re: /^\.env(\.|$)/i, reason: 'Environment configuration' },
+  { re: /(^|\/)\.env(\.|$)/i, reason: 'Environment configuration' },
   { re: /\/secrets\/|\/secret\//i, reason: 'Secrets directory' },
 ];
 const HIGH_PATTERNS = [
@@ -45,7 +45,9 @@ function checkSensitiveFiles(diff) {
     }
     return null;
   };
-  for (const path of files) {
+  for (const rawPath of files) {
+    const path = (rawPath && rawPath.trim()) || '';
+    if (!path) continue;
     const c = match(path, CRITICAL_PATTERNS);
     if (c) {
       critical.push({ path, reason: c });
