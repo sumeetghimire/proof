@@ -37741,17 +37741,6 @@ async function getExistingSensitiveFiles(workspace) {
       /**/
     }
   }
-  try {
-    const workflowsDir = path.join(workspace, '.github', 'workflows');
-    const entries = await fs.readdir(workflowsDir, { withFileTypes: true });
-    for (const e of entries) {
-      if (e.isFile() && /\.(yml|yaml)$/i.test(e.name)) {
-        found.push({ path: `.github/workflows/${e.name}`, reason: 'CI/CD pipeline' });
-      }
-    }
-  } catch {
-    /**/
-  }
   return found;
 }
 
