@@ -37216,7 +37216,7 @@ function buildReport(results) {
     (report.scope && report.scope.unrelatedCount > 0) ||
     (report.security && report.security.findings && report.security.findings.length > 0) ||
     report.timeout != null ||
-    (report.sensitive && (report.sensitive.critical?.length > 0 || report.sensitive.high?.length > 0));
+    (report.sensitive && (report.sensitive.critical?.length > 0 || report.sensitive.high?.length > 0 || (report.sensitive.presentInRepo && report.sensitive.presentInRepo.length > 0)));
 
   let verdict = 'READY';
   if (criticalFail) verdict = 'NOT_READY';
@@ -37276,6 +37276,9 @@ function formatComment(report) {
   if (r.sensitive != null && (r.sensitive.critical?.length > 0 || r.sensitive.high?.length > 0)) {
     const n = (r.sensitive.critical?.length || 0) + (r.sensitive.high?.length || 0);
     lines.push(`| Sensitive files | ⚠️ ${n} changed |`);
+  }
+  if (r.sensitive != null && r.sensitive.presentInRepo?.length > 0) {
+    lines.push(`| Sensitive files in repo | ⚠️ ${r.sensitive.presentInRepo.length} present (e.g. .env) |`);
   }
 
   if (r.tests && !r.tests.success && r.tests.output) {
@@ -37339,7 +37342,7 @@ function formatComment(report) {
     if (r.timeout.lastOutput) lines.push('', 'Last output:', '```', r.timeout.lastOutput.slice(-500), '```');
   }
   if (r.sensitive && (r.sensitive.critical?.length > 0 || r.sensitive.high?.length > 0 || r.sensitive.medium?.length > 0)) {
-    lines.push('', '### 🔐 Sensitive files changed', '');
+    lines.push('', '### 🔐 Sensitive files changed in this PR', '');
     if (r.sensitive.critical?.length > 0) {
       r.sensitive.critical.forEach(({ path: p, reason }) => lines.push(`- ❌ **CRITICAL** — \`${p}\`: ${reason}`));
     }
@@ -37349,6 +37352,11 @@ function formatComment(report) {
     if (r.sensitive.medium?.length > 0) {
       r.sensitive.medium.slice(0, 5).forEach(({ path: p, reason }) => lines.push(`- **MEDIUM** — \`${p}\`: ${reason}`));
     }
+  }
+  if (r.sensitive && r.sensitive.presentInRepo?.length > 0) {
+    lines.push('', '### 🔐 Sensitive files present in repo', '');
+    lines.push('These files exist in the repo (may have been added in a previous PR). Ensure they are not committed with secrets.', '');
+    r.sensitive.presentInRepo.forEach(({ path: p, reason }) => lines.push(`- \`${p}\`: ${reason}`));
   }
 
   const verdictLabel =
@@ -37676,9 +37684,12 @@ module.exports = {
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /**
- * Sensitive file check: warn when critical/high/medium sensitivity files are modified.
+ * Sensitive file check: warn when critical/high/medium sensitivity files are modified,
+ * and when critical sensitive files (e.g. .env) exist in the repo even if not in this PR.
  */
 
+const path = __nccwpck_require__(6928);
+const fs = (__nccwpck_require__(9896).promises);
 const { getChangedFilesFromDiff } = __nccwpck_require__(7538);
 
 const CRITICAL_PATTERNS = [
@@ -37700,18 +37711,57 @@ const HIGH_PATTERNS = [
   { re: /\.(pem|key|cert|crt)$/i, reason: 'Certificate/key file' },
 ];
 const MEDIUM_PATTERNS = [
-  { re: /^README\.md$/i, reason: 'Documentation' },
   { re: /^SECURITY\.md$/i, reason: 'Security policy' },
   { re: /^\.gitignore$/i, reason: 'Ignore rules' },
   { re: /\/config\/.+/i, reason: 'Config directory' },
 ];
 
+/** Paths to check for presence in repo (critical only). */
+const CRITICAL_PATHS_TO_CHECK = [
+  { path: '.env', reason: 'Environment configuration' },
+  { path: '.env.local', reason: 'Environment configuration' },
+  { path: '.env.development', reason: 'Environment configuration' },
+  { path: '.env.production', reason: 'Environment configuration' },
+  { path: 'Dockerfile', reason: 'Container environment' },
+  { path: 'docker-compose.yml', reason: 'Container environment' },
+];
+
 /**
- * Classifies changed files by sensitivity. Does not block merge; for reporting only.
- * @param {string} diff - PR unified diff
- * @returns {{ critical: { path: string, reason: string }[], high: { path: string, reason: string }[], medium: { path: string, reason: string }[] }}
+ * Returns list of critical sensitive files that exist in the workspace (even if not in this PR's diff).
+ * @param {string} workspace - Repo root path (e.g. GITHUB_WORKSPACE)
+ * @returns {Promise<{ path: string, reason: string }[]>}
  */
-function checkSensitiveFiles(diff) {
+async function getExistingSensitiveFiles(workspace) {
+  const found = [];
+  for (const { path: relPath, reason } of CRITICAL_PATHS_TO_CHECK) {
+    try {
+      await fs.access(path.join(workspace, relPath));
+      found.push({ path: relPath, reason });
+    } catch {
+      /**/
+    }
+  }
+  try {
+    const workflowsDir = path.join(workspace, '.github', 'workflows');
+    const entries = await fs.readdir(workflowsDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isFile() && /\.(yml|yaml)$/i.test(e.name)) {
+        found.push({ path: `.github/workflows/${e.name}`, reason: 'CI/CD pipeline' });
+      }
+    }
+  } catch {
+    /**/
+  }
+  return found;
+}
+
+/**
+ * Classifies changed files by sensitivity and lists critical files present in repo.
+ * @param {string} diff - PR unified diff
+ * @param {string} [workspace] - Repo root; if provided, also reports existing critical sensitive files
+ * @returns {Promise<{ critical: { path: string, reason: string }[], high: { path: string, reason: string }[], medium: { path: string, reason: string }[], presentInRepo: { path: string, reason: string }[] }>}
+ */
+async function checkSensitiveFiles(diff, workspace) {
   const files = getChangedFilesFromDiff(diff);
   const critical = [];
   const high = [];
@@ -37738,11 +37788,16 @@ function checkSensitiveFiles(diff) {
     const m = match(path, MEDIUM_PATTERNS);
     if (m) medium.push({ path, reason: m });
   }
-  return { critical, high, medium };
+  let presentInRepo = [];
+  if (workspace) {
+    presentInRepo = await getExistingSensitiveFiles(workspace);
+  }
+  return { critical, high, medium, presentInRepo };
 }
 
 module.exports = {
   checkSensitiveFiles,
+  getExistingSensitiveFiles,
 };
 
 
@@ -39835,16 +39890,19 @@ async function run() {
         results.security = { findings: [], hasCritical: false };
       }
     }
-    if (checkSensitiveFilesFlag && prDiff) {
+    if (checkSensitiveFilesFlag) {
       try {
-        results.sensitive = checkSensitiveFiles(prDiff);
-        const { critical, high } = results.sensitive;
+        results.sensitive = await checkSensitiveFiles(prDiff || '', workspace);
+        const { critical, high, presentInRepo } = results.sensitive;
         if (critical.length > 0 || high.length > 0) {
           core.warning(`Sensitive files: ${critical.length} critical, ${high.length} high`);
         }
+        if (presentInRepo && presentInRepo.length > 0) {
+          core.warning(`Sensitive files present in repo: ${presentInRepo.map((f) => f.path).join(', ')}`);
+        }
       } catch (e) {
         core.warning('Sensitive files check failed: ' + (e && e.message));
-        results.sensitive = { critical: [], high: [], medium: [] };
+        results.sensitive = { critical: [], high: [], medium: [], presentInRepo: [] };
       }
     }
     const lang = await detectLanguage(workspace);

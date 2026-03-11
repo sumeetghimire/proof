@@ -135,16 +135,19 @@ async function run() {
         results.security = { findings: [], hasCritical: false };
       }
     }
-    if (checkSensitiveFilesFlag && prDiff) {
+    if (checkSensitiveFilesFlag) {
       try {
-        results.sensitive = checkSensitiveFiles(prDiff);
-        const { critical, high } = results.sensitive;
+        results.sensitive = await checkSensitiveFiles(prDiff || '', workspace);
+        const { critical, high, presentInRepo } = results.sensitive;
         if (critical.length > 0 || high.length > 0) {
           core.warning(`Sensitive files: ${critical.length} critical, ${high.length} high`);
         }
+        if (presentInRepo && presentInRepo.length > 0) {
+          core.warning(`Sensitive files present in repo: ${presentInRepo.map((f) => f.path).join(', ')}`);
+        }
       } catch (e) {
         core.warning('Sensitive files check failed: ' + (e && e.message));
-        results.sensitive = { critical: [], high: [], medium: [] };
+        results.sensitive = { critical: [], high: [], medium: [], presentInRepo: [] };
       }
     }
     const lang = await detectLanguage(workspace);

@@ -37,7 +37,7 @@ function buildReport(results) {
     (report.scope && report.scope.unrelatedCount > 0) ||
     (report.security && report.security.findings && report.security.findings.length > 0) ||
     report.timeout != null ||
-    (report.sensitive && (report.sensitive.critical?.length > 0 || report.sensitive.high?.length > 0));
+    (report.sensitive && (report.sensitive.critical?.length > 0 || report.sensitive.high?.length > 0 || (report.sensitive.presentInRepo && report.sensitive.presentInRepo.length > 0)));
 
   let verdict = 'READY';
   if (criticalFail) verdict = 'NOT_READY';
@@ -97,6 +97,9 @@ function formatComment(report) {
   if (r.sensitive != null && (r.sensitive.critical?.length > 0 || r.sensitive.high?.length > 0)) {
     const n = (r.sensitive.critical?.length || 0) + (r.sensitive.high?.length || 0);
     lines.push(`| Sensitive files | ⚠️ ${n} changed |`);
+  }
+  if (r.sensitive != null && r.sensitive.presentInRepo?.length > 0) {
+    lines.push(`| Sensitive files in repo | ⚠️ ${r.sensitive.presentInRepo.length} present (e.g. .env) |`);
   }
 
   if (r.tests && !r.tests.success && r.tests.output) {
@@ -160,7 +163,7 @@ function formatComment(report) {
     if (r.timeout.lastOutput) lines.push('', 'Last output:', '```', r.timeout.lastOutput.slice(-500), '```');
   }
   if (r.sensitive && (r.sensitive.critical?.length > 0 || r.sensitive.high?.length > 0 || r.sensitive.medium?.length > 0)) {
-    lines.push('', '### 🔐 Sensitive files changed', '');
+    lines.push('', '### 🔐 Sensitive files changed in this PR', '');
     if (r.sensitive.critical?.length > 0) {
       r.sensitive.critical.forEach(({ path: p, reason }) => lines.push(`- ❌ **CRITICAL** — \`${p}\`: ${reason}`));
     }
@@ -170,6 +173,11 @@ function formatComment(report) {
     if (r.sensitive.medium?.length > 0) {
       r.sensitive.medium.slice(0, 5).forEach(({ path: p, reason }) => lines.push(`- **MEDIUM** — \`${p}\`: ${reason}`));
     }
+  }
+  if (r.sensitive && r.sensitive.presentInRepo?.length > 0) {
+    lines.push('', '### 🔐 Sensitive files present in repo', '');
+    lines.push('These files exist in the repo (may have been added in a previous PR). Ensure they are not committed with secrets.', '');
+    r.sensitive.presentInRepo.forEach(({ path: p, reason }) => lines.push(`- \`${p}\`: ${reason}`));
   }
 
   const verdictLabel =
